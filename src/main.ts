@@ -258,11 +258,13 @@ async function main() {
   const comments = await analyzeCode(filteredDiff, prDetails);
   const pylintScore = await getPylintScore();
 
-  comments.push({
-    body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
-    path: filteredDiff[0]?.to || '',  // Add to the first changed file if exists
-    line: 1  // Add at the beginning of the file
-  });
+  if (pylintScore < 9) {
+    comments.push({
+      body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
+      path: filteredDiff[0]?.to || '',  // Add to the first changed file if exists
+      line: 1  // Add at the beginning of the file
+    });
+  }
 
   if (comments.length > 0) {
     await createReviewComment(
