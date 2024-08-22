@@ -399,7 +399,7 @@ async function main() {
     prDetails.owner,
     prDetails.repo,
     prDetails.pull_number,
-    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
+    `The updated pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
   );
 
   if (comments.length > 0) {
