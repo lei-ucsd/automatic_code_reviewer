@@ -19,6 +19,7 @@ def process_data(data):
             result.append(data[i].upper())
         else:
             result.append(data[i])
+    print(23)
     return result
 
 def generate_random_numbers():
