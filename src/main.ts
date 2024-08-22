@@ -47,8 +47,6 @@ async function getPylintScore(): Promise<number> {
   const files: string[] = await glob("**/*.py", {
     ignore: ["venv/**", "env/**", "node_modules/**"],
   });
-
-  return 10;
   console.log(files);
   if (files.length === 0) {
     console.log("No Python files found in the repository.");
