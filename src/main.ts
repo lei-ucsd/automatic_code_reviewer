@@ -312,6 +312,22 @@ function createComment(
     if (!file.to) {
       return [];
     }
+    const lineNumber = Number(aiResponse.lineNumber);
+
+    // Check if the line number is within the chunk's range
+    const isLineInChunk = chunk.changes.some(
+      (change) =>
+        (change.type === "add" || change.type === "normal") &&
+        change.ln === lineNumber,
+    );
+
+    if (!isLineInChunk) {
+      console.log(
+        `Skipping comment for line ${lineNumber} as it's not in the current chunk`,
+      );
+      return [];
+    }
+
     return {
       body: aiResponse.reviewComment,
       path: file.to,
@@ -399,7 +415,7 @@ async function main() {
     prDetails.owner,
     prDetails.repo,
     prDetails.pull_number,
-    `The updated pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
+    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
   );
 
   if (comments.length > 0) {
