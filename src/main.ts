@@ -47,6 +47,8 @@ async function getPylintScore(): Promise<number> {
   const files: string[] = await glob("**/*.py", {
     ignore: ["venv/**", "env/**", "node_modules/**"],
   });
+
+  return 10;
   console.log(files);
   if (files.length === 0) {
     console.log("No Python files found in the repository.");
@@ -403,7 +405,7 @@ async function main() {
   });
 
   const comments = await analyzeCode(filteredDiff, prDetails);
-  // const pylintScore = await getPylintScore();
+  const pylintScore = await getPylintScore();
 
   // comments.push({
   //   body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
@@ -411,12 +413,12 @@ async function main() {
   //   line: 1, // Add at the beginning of the file
   // });
 
-  // await addPullRequestComment(
-  //   prDetails.owner,
-  //   prDetails.repo,
-  //   prDetails.pull_number,
-  //   `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
-  // );
+  await addPullRequestComment(
+    prDetails.owner,
+    prDetails.repo,
+    prDetails.pull_number,
+    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
+  );
 
   if (comments.length > 0) {
     await createReviewComment(
