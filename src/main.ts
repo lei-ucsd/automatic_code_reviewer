@@ -32,7 +32,7 @@ async function addPullRequestComment(
   owner: string,
   repo: string,
   pull_number: number,
-  body: string,
+  body: string
 ): Promise<void> {
   await octokit.issues.createComment({
     owner,
@@ -54,7 +54,7 @@ async function getPylintScore(): Promise<number> {
   }
 
   const { stdout, stderr } = await execAsync(
-    `pylint ${files.join(" ")} --exit-zero  --output-format=text`,
+    `pylint ${files.join(" ")} --exit-zero  --output-format=text`
   );
 
   if (stderr) {
@@ -71,7 +71,7 @@ function parsePylint(pylintOutput: string): number {
 
 async function getPRDetails(): Promise<PRDetails> {
   const { repository, number } = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8"),
+    readFileSync(process.env.GITHUB_EVENT_PATH || "", "utf8")
   );
   const prResponse = await octokit.pulls.get({
     owner: repository.owner.login,
@@ -90,7 +90,7 @@ async function getPRDetails(): Promise<PRDetails> {
 async function getDiff(
   owner: string,
   repo: string,
-  pull_number: number,
+  pull_number: number
 ): Promise<string | null> {
   const response = await octokit.pulls.get({
     owner,
@@ -104,7 +104,7 @@ async function getDiff(
 
 async function analyzeCode(
   parsedDiff: File[],
-  prDetails: PRDetails,
+  prDetails: PRDetails
 ): Promise<Array<{ body: string; path: string; line: number }>> {
   const comments: Array<{ body: string; path: string; line: number }> = [];
 
@@ -276,7 +276,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
     if (!parsedContent.reviews || !Array.isArray(parsedContent.reviews)) {
       console.error(
         "Parsed content does not contain a 'reviews' array:",
-        parsedContent,
+        parsedContent
       );
       return null;
     }
@@ -286,7 +286,7 @@ async function getAIResponse(prompt: string): Promise<Array<{
       (review: { lineNumber: any; reviewComment: any }) => ({
         lineNumber: review.lineNumber,
         reviewComment: JSON.parse(JSON.stringify(review.reviewComment)),
-      }),
+      })
     );
 
     return sanitizedReviews;
@@ -306,25 +306,10 @@ function createComment(
   aiResponses: Array<{
     lineNumber: string;
     reviewComment: string;
-  }>,
+  }>
 ): Array<{ body: string; path: string; line: number }> {
   return aiResponses.flatMap((aiResponse) => {
     if (!file.to) {
-      return [];
-    }
-    const lineNumber = Number(aiResponse.lineNumber);
-
-    // Check if the line number is within the chunk's range
-    const isLineInChunk = chunk.changes.some(
-      (change) =>
-        (change.type === "add" || change.type === "normal") &&
-        change.ln === lineNumber,
-    );
-
-    if (!isLineInChunk) {
-      console.log(
-        `Skipping comment for line ${lineNumber} as it's not in the current chunk`,
-      );
       return [];
     }
 
@@ -340,7 +325,7 @@ async function createReviewComment(
   owner: string,
   repo: string,
   pull_number: number,
-  comments: Array<{ body: string; path: string; line: number }>,
+  comments: Array<{ body: string; path: string; line: number }>
 ): Promise<void> {
   await octokit.pulls.createReview({
     owner,
@@ -355,14 +340,14 @@ async function main() {
   const prDetails = await getPRDetails();
   let diff: string | null;
   const eventData = JSON.parse(
-    readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8"),
+    readFileSync(process.env.GITHUB_EVENT_PATH ?? "", "utf8")
   );
 
   if (eventData.action === "opened") {
     diff = await getDiff(
       prDetails.owner,
       prDetails.repo,
-      prDetails.pull_number,
+      prDetails.pull_number
     );
   } else if (eventData.action === "synchronize") {
     const newBaseSha = eventData.before;
@@ -398,24 +383,18 @@ async function main() {
 
   const filteredDiff = parsedDiff.filter((file) => {
     return !excludePatterns.some((pattern) =>
-      minimatch(file.to ?? "", pattern),
+      minimatch(file.to ?? "", pattern)
     );
   });
 
   const comments = await analyzeCode(filteredDiff, prDetails);
   const pylintScore = await getPylintScore();
 
-  // comments.push({
-  //   body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
-  //   path: filteredDiff[0]?.to || "", // Add to the first changed file if exists
-  //   line: 1, // Add at the beginning of the file
-  // });
-
   await addPullRequestComment(
     prDetails.owner,
     prDetails.repo,
     prDetails.pull_number,
-    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`,
+    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`
   );
 
   if (comments.length > 0) {
@@ -423,7 +402,7 @@ async function main() {
       prDetails.owner,
       prDetails.repo,
       prDetails.pull_number,
-      comments,
+      comments
     );
   }
 }
