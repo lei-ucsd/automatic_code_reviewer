@@ -11,6 +11,30 @@ review process.
 - Filters out files that match specified exclude patterns.
 - Easy to set up and integrate into your GitHub workflow.
 
+## Updates
+
+1. To make any updates to the code reviewer, ONLY change `main.ts`.
+
+2. Once all changes have been made in `main.ts`, you will need to re-build both the "lib" and "dist" folders. Follow these steps:
+
+   a. Delete both `lib` and `dist` folders.
+   
+   b. Run the following command to generate the updated `lib` folder:
+      ```
+      npm run build
+      ```
+   
+   c. Run the following command to generate the updated `dist` folder:
+      ```
+      npm run package
+      ```
+
+## Important Notes
+
+- Always ensure you're working with the latest version of `main.ts` before making changes.
+- After rebuilding, verify that the new `lib` and `dist` folders contain the expected updated files.
+- It's recommended to test the changes thoroughly after rebuilding to ensure everything works as expected.
+
 ## Setup
 
 1. To use this GitHub Action, you need an Anthropic API Key.
