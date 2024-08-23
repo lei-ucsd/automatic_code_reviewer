@@ -57,18 +57,30 @@ const CLAUDE_MODEL = core.getInput("CLAUDE_MODEL");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
 const anthropic = new sdk_1.default({
-    apiKey: ANTHROPIC_API_KEY
+    apiKey: ANTHROPIC_API_KEY,
 });
+function addPullRequestComment(owner, repo, pull_number, body) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield octokit.issues.createComment({
+            owner,
+            repo,
+            issue_number: pull_number,
+            body,
+        });
+    });
+}
 // Get pylint score on python files
 function getPylintScore() {
     return __awaiter(this, void 0, void 0, function* () {
-        const files = yield (0, glob_1.glob)('**/*.py', { ignore: ['venv/**', 'env/**', 'node_modules/**'] });
+        const files = yield (0, glob_1.glob)("**/*.py", {
+            ignore: ["venv/**", "env/**", "node_modules/**"],
+        });
         console.log(files);
         if (files.length === 0) {
             console.log("No Python files found in the repository.");
             return 10;
         }
-        const { stdout, stderr } = yield execAsync(`pylint ${files.join(' ')} --exit-zero  --output-format=text`);
+        const { stdout, stderr } = yield execAsync(`pylint ${files.join(" ")} --exit-zero  --output-format=text`);
         if (stderr) {
             console.error("Pylint error:", stderr);
         }
@@ -130,7 +142,76 @@ function analyzeCode(parsedDiff, prDetails) {
     });
 }
 function createPrompt(file, chunk, prDetails) {
-    return `Your task is to review pull requests. Instructions:
+    return `You are an expert Python code reviewer with a deep understanding of software engineering principles and best practices. Your task is to review Python code snippets and provide constructive feedback to improve code quality. Follow these guidelines in your review:
+
+  Readability and Simplicity:
+
+  Assess the overall readability of the code.
+  Identify overly complex sections and suggest simplifications.
+
+
+  Naming Conventions and Consistency:
+
+  Check if variable, function, and class names are descriptive and follow Python conventions (snake_case for functions/variables, PascalCase for classes).
+  Ensure naming is consistent throughout the code.
+
+
+  Code Structure and Modularity:
+
+  Evaluate the organization of the code into functions and classes.
+  Suggest improvements for better separation of concerns and reusability.
+
+
+  Documentation and Comments:
+
+  Check for the presence and quality of docstrings for functions and classes.
+  Assess inline comments for clarity and necessity.
+
+
+  Error Handling and Input Validation:
+
+  Identify areas where exception handling should be implemented.
+  Suggest input validation for functions to ensure robustness.
+
+
+  Efficiency and Performance:
+
+  Point out any inefficient algorithms or data structures.
+  Suggest optimizations where appropriate.
+
+
+  Adherence to Python Best Practices:
+
+  Check if the code follows PEP 8 style guidelines.
+  Identify usage of Python-specific features and idioms (e.g., list comprehensions, context managers).
+
+
+  Type Hinting and Annotations:
+
+  Suggest adding type hints to improve code clarity and catch potential type-related errors.
+
+
+  Testability:
+
+  Assess how easily the code can be unit tested.
+  Suggest improvements to make functions more testable.
+
+
+  Potential Bugs and Edge Cases:
+
+  Identify any logical errors or potential bugs in the code.
+  Point out edge cases that may not be handled properly.
+
+
+
+  For each issue you identify:
+
+  Clearly explain the problem and why it's an issue.
+  Provide a specific suggestion for how to improve the code.
+  If applicable, offer a code snippet demonstrating the suggested improvement.
+
+  End your review with a summary of the major points and an overall assessment of the code quality.
+  Remember to maintain a constructive and educational tone throughout your review, highlighting both areas for improvement and any positive aspects of the code. Instructions:
 - Provide the response in following JSON format:  {"reviews": [{"lineNumber":  <line_number>, "reviewComment": "<review comment>"}]}
 - Do not give positive comments or compliments.
 - Provide comments and suggestions ONLY if there is something to improve, otherwise "reviews" should be an empty array.
@@ -139,7 +220,7 @@ function createPrompt(file, chunk, prDetails) {
 - IMPORTANT: NEVER suggest adding comments to the code.
 
 Review the following code diff in the file "${file.to}" and take the pull request title and description into account when writing the response.
-  
+
 Pull request title: ${prDetails.title}
 Pull request description:
 
@@ -172,7 +253,7 @@ function getAIResponse(prompt) {
                         content: prompt,
                     },
                 ] }));
-            const content = response.content[0].type === 'text' ? response.content[0].text : '';
+            const content = response.content[0].type === "text" ? response.content[0].text : "";
             let parsedContent;
             try {
                 parsedContent = JSON.parse(content);
@@ -204,7 +285,7 @@ function getAIResponse(prompt) {
             // Ensure all reviewComments are properly escaped
             const sanitizedReviews = parsedContent.reviews.map((review) => ({
                 lineNumber: review.lineNumber,
-                reviewComment: JSON.parse(JSON.stringify(review.reviewComment))
+                reviewComment: JSON.parse(JSON.stringify(review.reviewComment)),
             }));
             return sanitizedReviews;
         }
@@ -242,7 +323,7 @@ function createReviewComment(owner, repo, pull_number, comments) {
     });
 }
 function main() {
-    var _a, _b;
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         const prDetails = yield getPRDetails();
         let diff;
@@ -282,11 +363,7 @@ function main() {
         });
         const comments = yield analyzeCode(filteredDiff, prDetails);
         const pylintScore = yield getPylintScore();
-        comments.push({
-            body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
-            path: ((_b = filteredDiff[0]) === null || _b === void 0 ? void 0 : _b.to) || '',
-            line: 1 // Add at the beginning of the file
-        });
+        yield addPullRequestComment(prDetails.owner, prDetails.repo, prDetails.pull_number, `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`);
         if (comments.length > 0) {
             yield createReviewComment(prDetails.owner, prDetails.repo, prDetails.pull_number, comments);
         }
