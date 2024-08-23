@@ -1,12 +1,12 @@
 import { readFileSync } from "fs";
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 import * as core from "@actions/core";
 import { Octokit } from "@octokit/rest";
 import parseDiff, { Chunk, File } from "parse-diff";
-import { minimatch } from "minimatch"; 
+import { minimatch } from "minimatch";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { glob } from 'glob';
+import { glob } from "glob";
 
 const GITHUB_TOKEN: string = core.getInput("GITHUB_TOKEN");
 const ANTHROPIC_API_KEY: string = core.getInput("ANTHROPIC_API_KEY");
@@ -17,7 +17,7 @@ const execAsync = promisify(exec);
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 const anthropic = new Anthropic({
-  apiKey: ANTHROPIC_API_KEY
+  apiKey: ANTHROPIC_API_KEY,
 });
 
 interface PRDetails {
@@ -28,16 +28,34 @@ interface PRDetails {
   description: string;
 }
 
+async function addPullRequestComment(
+  owner: string,
+  repo: string,
+  pull_number: number,
+  body: string
+): Promise<void> {
+  await octokit.issues.createComment({
+    owner,
+    repo,
+    issue_number: pull_number,
+    body,
+  });
+}
+
 // Get pylint score on python files
 async function getPylintScore(): Promise<number> {
-  const files: string[] = await glob('**/*.py', { ignore: ['venv/**', 'env/**', 'node_modules/**'] });
+  const files: string[] = await glob("**/*.py", {
+    ignore: ["venv/**", "env/**", "node_modules/**"],
+  });
   console.log(files);
   if (files.length === 0) {
     console.log("No Python files found in the repository.");
     return 10;
   }
 
-  const { stdout, stderr } = await execAsync(`pylint ${files.join(' ')} --exit-zero  --output-format=text`);
+  const { stdout, stderr } = await execAsync(
+    `pylint ${files.join(" ")} --exit-zero  --output-format=text`
+  );
 
   if (stderr) {
     console.error("Pylint error:", stderr);
@@ -107,7 +125,76 @@ async function analyzeCode(
 }
 
 function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
-  return `Your task is to review pull requests. Instructions:
+  return `You are an expert Python code reviewer with a deep understanding of software engineering principles and best practices. Your task is to review Python code snippets and provide constructive feedback to improve code quality. Follow these guidelines in your review:
+
+  Readability and Simplicity:
+
+  Assess the overall readability of the code.
+  Identify overly complex sections and suggest simplifications.
+
+
+  Naming Conventions and Consistency:
+
+  Check if variable, function, and class names are descriptive and follow Python conventions (snake_case for functions/variables, PascalCase for classes).
+  Ensure naming is consistent throughout the code.
+
+
+  Code Structure and Modularity:
+
+  Evaluate the organization of the code into functions and classes.
+  Suggest improvements for better separation of concerns and reusability.
+
+
+  Documentation and Comments:
+
+  Check for the presence and quality of docstrings for functions and classes.
+  Assess inline comments for clarity and necessity.
+
+
+  Error Handling and Input Validation:
+
+  Identify areas where exception handling should be implemented.
+  Suggest input validation for functions to ensure robustness.
+
+
+  Efficiency and Performance:
+
+  Point out any inefficient algorithms or data structures.
+  Suggest optimizations where appropriate.
+
+
+  Adherence to Python Best Practices:
+
+  Check if the code follows PEP 8 style guidelines.
+  Identify usage of Python-specific features and idioms (e.g., list comprehensions, context managers).
+
+
+  Type Hinting and Annotations:
+
+  Suggest adding type hints to improve code clarity and catch potential type-related errors.
+
+
+  Testability:
+
+  Assess how easily the code can be unit tested.
+  Suggest improvements to make functions more testable.
+
+
+  Potential Bugs and Edge Cases:
+
+  Identify any logical errors or potential bugs in the code.
+  Point out edge cases that may not be handled properly.
+
+
+
+  For each issue you identify:
+
+  Clearly explain the problem and why it's an issue.
+  Provide a specific suggestion for how to improve the code.
+  If applicable, offer a code snippet demonstrating the suggested improvement.
+
+  End your review with a summary of the major points and an overall assessment of the code quality.
+  Remember to maintain a constructive and educational tone throughout your review, highlighting both areas for improvement and any positive aspects of the code. Instructions:
 - Provide the response in following JSON format:  {"reviews": [{"lineNumber":  <line_number>, "reviewComment": "<review comment>"}]}
 - Do not give positive comments or compliments.
 - Provide comments and suggestions ONLY if there is something to improve, otherwise "reviews" should be an empty array.
@@ -118,7 +205,7 @@ function createPrompt(file: File, chunk: Chunk, prDetails: PRDetails): string {
 Review the following code diff in the file "${
     file.to
   }" and take the pull request title and description into account when writing the response.
-  
+
 Pull request title: ${prDetails.title}
 Pull request description:
 
@@ -159,21 +246,22 @@ async function getAIResponse(prompt: string): Promise<Array<{
       ],
     });
 
-    const content = response.content[0].type === 'text' ? response.content[0].text : '';
+    const content =
+      response.content[0].type === "text" ? response.content[0].text : "";
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
     } catch (jsonError) {
       console.error("Error parsing initial JSON:", jsonError);
       const cleanedContent = content
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") 
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
         .replace(/\n/g, "\\n")
         .replace(/\r/g, "\\r")
         .replace(/\t/g, "\\t")
         .replace(/\f/g, "\\f")
         .replace(/"/g, '\\"')
         .replace(/\\'/g, "'");
-      
+
       console.log("Cleaned content:", cleanedContent);
 
       try {
@@ -186,15 +274,20 @@ async function getAIResponse(prompt: string): Promise<Array<{
     }
 
     if (!parsedContent.reviews || !Array.isArray(parsedContent.reviews)) {
-      console.error("Parsed content does not contain a 'reviews' array:", parsedContent);
+      console.error(
+        "Parsed content does not contain a 'reviews' array:",
+        parsedContent
+      );
       return null;
     }
 
     // Ensure all reviewComments are properly escaped
-    const sanitizedReviews = parsedContent.reviews.map((review: { lineNumber: any; reviewComment: any; }) => ({
-      lineNumber: review.lineNumber,
-      reviewComment: JSON.parse(JSON.stringify(review.reviewComment))
-    }));
+    const sanitizedReviews = parsedContent.reviews.map(
+      (review: { lineNumber: any; reviewComment: any }) => ({
+        lineNumber: review.lineNumber,
+        reviewComment: JSON.parse(JSON.stringify(review.reviewComment)),
+      })
+    );
 
     return sanitizedReviews;
   } catch (error) {
@@ -219,6 +312,7 @@ function createComment(
     if (!file.to) {
       return [];
     }
+
     return {
       body: aiResponse.reviewComment,
       path: file.to,
@@ -296,11 +390,12 @@ async function main() {
   const comments = await analyzeCode(filteredDiff, prDetails);
   const pylintScore = await getPylintScore();
 
-    comments.push({
-      body: `The pylint score is: ${pylintScore.toFixed(2)}/10`,
-      path: filteredDiff[0]?.to || '',  // Add to the first changed file if exists
-      line: 1  // Add at the beginning of the file
-    });
+  await addPullRequestComment(
+    prDetails.owner,
+    prDetails.repo,
+    prDetails.pull_number,
+    `The pylint score for this pull request is: ${pylintScore.toFixed(2)}/10`
+  );
 
   if (comments.length > 0) {
     await createReviewComment(
